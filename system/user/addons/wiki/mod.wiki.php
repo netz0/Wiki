@@ -1206,15 +1206,13 @@ class Wiki {
 		switch ($type)
 		{
 			case 'uncategorized_pages' :
-
 				$this->return_data = str_replace('{wiki:page}', $this->_fetch_template('wiki_special_uncategorized_pages.html'), $this->return_data);
 
 				/** ---------------------------------------
 				/**  Get categorized page ids
 				/** ---------------------------------------*/
 
-				$query = ee()->db->distinct()
-							->select('exp_wiki_category_articles.page_id')
+				$query = ee()->db->distinct('exp_wiki_category_articles.page_id')
 							->from('wiki_category_articles')
 							->join('wiki_page', 'exp_wiki_page.page_id = exp_wiki_category_articles.page_id')
 							->where('wiki_id', $this->wiki_id)
@@ -1256,7 +1254,7 @@ class Wiki {
 
 		$columns = 3;
 
-		if (trim($match['1']) != '' && ($params = ee('Variables/Parser')->parseTagParameters($match['1'])) !== FALSE)
+		if (trim($match['1']) != '' && ($params = ee()->functions->assign_parameters($match['1'])) !== FALSE)
 		{
 			$columns = (isset($params['columns']) && is_numeric($params['columns'])) ? $params['columns'] : $limit;
 		}
@@ -1280,7 +1278,7 @@ class Wiki {
 		}
 
 		$results = ee()->db->query("SELECT r.*,
-								m.member_id, m.screen_name, m.email,
+								m.member_id, m.screen_name, m.email
 								p.page_namespace, p.page_name AS topic
 								FROM exp_wiki_revisions r, exp_members m, exp_wiki_page p
 								WHERE p.last_updated = r.revision_date
@@ -1342,7 +1340,7 @@ class Wiki {
 		$count = 0;
 
 		// added in 1.6 for {switch} variable and for future use
-		$vars = ee('Variables/Parser')->extractVariables($template);
+		$vars = ee()->functions->assign_variables($template);
 		ee()->load->helper('url');
 
 		foreach($results->result_array() as $row)
@@ -1371,6 +1369,7 @@ class Wiki {
 							'{path:author_profile}'	=> ee()->functions->create_url($this->profile_path.$row['member_id']),
 							'{path:member_profile}'	=> ee()->functions->create_url($this->profile_path.$row['member_id']),
 							'{email}'				=> ee()->typography->encode_email($row['email']),
+							'{url}'					=> prep_url($row['url']),
 							'{revision_notes}'		=> $row['revision_notes'],
 							'{path:view_article}'	=> $link,
 							'{content}'				=> $row['page_content'],
@@ -1399,7 +1398,7 @@ class Wiki {
 				/** ----------------------------------------*/
 				if (preg_match("/^switch\s*=.+/i", $key))
 				{
-					$sparam = ee('Variables/Parser')->parseTagParameters($key);
+					$sparam = ee()->functions->assign_parameters($key);
 
 					$sw = '';
 
@@ -1452,7 +1451,7 @@ class Wiki {
 		/** ----------------------------------------*/
 
 		$tag_param_string = $match[1];
-		$parameters = ee('Variables/Parser')->parseTagParameters($tag_param_string, array(
+		$parameters = ee()->functions->assign_parameters($tag_param_string, array(
 			'limit'		=> 10,
 			'paginate'	=> 'bottom',
 			'switch'	=> ''
@@ -1514,7 +1513,7 @@ class Wiki {
 		}
 
 		$results = ee()->db->query("SELECT r.*,
-								m.member_id, m.screen_name, m.email,
+								m.member_id, m.screen_name, m.email
 								p.page_namespace, p.page_name AS topic ".
 								$sql.
 								$pagination_sql);
@@ -1554,6 +1553,7 @@ class Wiki {
 				'{path:author_profile}'	=> ee()->functions->create_url($this->profile_path.$row['member_id']),
 				'{path:member_profile}'	=> ee()->functions->create_url($this->profile_path.$row['member_id']),
 				'{email}'				=> ($type == 'rss' OR $type == 'atom') ? $row['email'] : ee()->typography->encode_email($row['email']), // No encoding for RSS/Atom
+				'{url}'					=> prep_url($row['url']),
 				'{revision_notes}'		=> $row['revision_notes'],
 				'{path:view_article}'	=> $link,
 				'{content}'				=> $row['page_content'],
@@ -1651,7 +1651,7 @@ class Wiki {
 			/**  Parameters
 			/** ----------------------------------------*/
 
-			extract(ee('Variables/Parser')->parseTagParameters($match[1], array(
+			extract(ee()->functions->assign_parameters($match[1], array(
 				'limit'			=> 10,
 				'backspace'		=> '',
 				'show_empty'	=> 'y',
@@ -1697,7 +1697,7 @@ class Wiki {
 		$output = ($style == 'nested') ? "<ul id='nav_categories'>\n" : '';
 
 		// added in 1.6 for {switch} and {count} variables and for future use
-		$vars = ee('Variables/Parser')->extractVariables($template);
+		$vars = ee()->functions->assign_variables($template);
 		$count = 0;
 
 		foreach($categories as $key => $category_data)
@@ -1734,7 +1734,7 @@ class Wiki {
 				/** ----------------------------------------*/
 				if (preg_match("/^switch\s*=.+/i", $k))
 				{
-					$sparam = ee('Variables/Parser')->parseTagParameters($k);
+					$sparam = ee()->functions->assign_parameters($k);
 
 					$sw = '';
 
@@ -1790,7 +1790,7 @@ class Wiki {
 					/** ----------------------------------------*/
 					if (preg_match("/^switch\s*=.+/i", $k))
 					{
-						$sparam = ee('Variables/Parser')->parseTagParameters($k);
+						$sparam = ee()->functions->assign_parameters($k);
 
 						$sw = '';
 
@@ -1907,18 +1907,11 @@ class Wiki {
 
 			if ($page_id != '')
 			{
-				$query = ee()->db->select('cat_id')
-							->from('wiki_category_articles')
-							->where('page_id', $page_id)
-							->get();
+				$query = ee()->db->query("SELECT cat_id FROM exp_wiki_category_articles WHERE page_id = '".ee()->db->escape_str($page_id)."'");
 			}
 			else
 			{
-				$query = ee()->db->distinct()
-							->select('cat_id')
-							->from('wiki_category_articles')
-							->get();
-
+				$query = ee()->db->query("SELECT DISTINCT cat_id FROM exp_wiki_category_articles");
 			}
 
 			if ($query->num_rows() == 0)
@@ -2540,7 +2533,7 @@ class Wiki {
 
 				$revisions = '';
 				$count = 0;
-				$vars = ee('Variables/Parser')->extractVariables($match['1']);
+				$vars = ee()->functions->assign_variables($match['1']);
 
 				foreach ($results->result_array() as $row)
 				{
@@ -2576,7 +2569,7 @@ class Wiki {
 						/** ----------------------------------------*/
 						if (preg_match("/^switch\s*=.+/i", $key))
 						{
-							$sparam = ee('Variables/Parser')->parseTagParameters($key);
+							$sparam = ee()->functions->assign_parameters($key);
 
 							$sw = '';
 
@@ -2977,7 +2970,7 @@ class Wiki {
 
 			$output = '';
 			$count = 0;
-			$vars = ee('Variables/Parser')->extractVariables($match['2']);
+			$vars = ee()->functions->assign_variables($match['2']);
 
 			foreach ($query->result() as $row)
 			{
@@ -2998,7 +2991,7 @@ class Wiki {
 
 					if (preg_match("/^switch\s*=.+/i", $key))
 					{
-						$sparam = ee('Variables/Parser')->parseTagParameters($key);
+						$sparam = ee()->functions->assign_parameters($key);
 
 						$sw = '';
 
@@ -3125,7 +3118,7 @@ class Wiki {
 			$header		= '';
 			$footer		= '';
 
-			extract(ee('Variables/Parser')->parseTagParameters($match[1], array(
+			extract(ee()->functions->assign_parameters($match[1], array(
 				'backspace'	=> '',
 				'style'		=> ''
 			)));
@@ -3194,7 +3187,7 @@ class Wiki {
 			$header		= '';
 			$footer		= '';
 
-			$parameters = ee('Variables/Parser')->parseTagParameters($match[1], array(
+			$parameters = ee()->functions->assign_parameters($match[1], array(
 				'limit'		=> 100,
 				'backspace'	=> '',
 				'paginate'	=> 'bottom'
@@ -4260,7 +4253,7 @@ class Wiki {
 		/**  Parameters
 		/** ----------------------------------------*/
 
-		$parameters = ee('Variables/Parser')->parseTagParameters($match[1], array(
+		$parameters = ee()->functions->assign_parameters($match[1], array(
 			'limit'		=> 20,
 			'paginate'	=> 'bottom',
 			'switch'	=> ''
@@ -4500,6 +4493,7 @@ class Wiki {
 				'{author}'				=> $row['screen_name'],
 				'{path:author_profile}'	=> ee()->functions->create_url($this->profile_path.$row['member_id']),
 				'{email}'				=> ee()->typography->encode_email($row['email']),
+				'{url}'					=> prep_url($row['url']),
 				'{revision_notes}'		=> $row['revision_notes'],
 				'{path:view_article}'	=> $link,
 				'{content}'				=> $row['page_content'],
@@ -4610,7 +4604,7 @@ class Wiki {
 		}
 
 		// Fetch parameters
-		extract(ee('Variables/Parser')->parseTagParameters($match[1], array(
+		extract(ee()->functions->assign_parameters($match[1], array(
 			'limit'		=> 20,
 			'paginate'	=> 'bottom',
 			'orderby'	=> 'file_name',
@@ -4707,6 +4701,7 @@ class Wiki {
 				'{author}'				=> $row['screen_name'],
 				'{path:author_profile}'	=> ee()->functions->create_url($this->profile_path.$row['member_id']),
 				'{email}'				=> ee()->typography->encode_email($row['email']),
+				'{url}'					=> prep_url($row['url']),
 				'{count}'				=> $index + 1
 			);
 

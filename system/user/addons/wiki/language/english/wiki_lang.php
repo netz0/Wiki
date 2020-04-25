@@ -83,7 +83,7 @@ Super Administrators are automatically administrators.',
 
 'allow_all_html' => 'Allow ALL HTML',
 
-'auto_br' => 'Auto line break',
+'auto_br' => 'Auto &lt;br /&gt;',
 
 'xhtml' => 'XHTML',
 
